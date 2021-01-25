@@ -7,6 +7,80 @@
 
 手眼标定主要需要使用到:
 
+### 1.0 相机标定
+
+> 相机标定主要在camera_calibration中实现.
+>
+> 另外,标定的结果需要保存到realsense中.这个主要需要借用Intel的工具
+
+#### 1.0.1 内参标定
+
+```
+roslaunch realsense2_camera rs_camera.launch color_width:=1920 color_height:=1080
+rosrun camera_calibration cameracalibrator.py --size 11x8 --square 0.03 image:=/camera/color/image_raw camera:=/camera/color --no-service-check
+```
+
+标定过程中的时间会比较久,耐心等待即可.(5-10分钟).之后会直接在calibration/calibration_files中生成对应的相机内参文件
+
+
+
+#### 1.0.2 内参写入
+
+这里主要需要使用Intel内部自带的工具讲camera_info写入到Intelrealsense中
+
+```
+#1: 安装Intel对应插件
+sudo apt-get install librscalibrationtool
+
+#2: 读入realsense自带的相机内参
+cd到calibration_files中
+Intel.Realsense.CustomRW -r -f camera_info.xml
+(如果说没有检测到序列号,重新插拔Realsense)
+
+#3: 基于保存的transforms.yaml更改cameras_info.xml
+cd到RWxml.py中,执行此python(路径默认保存过了)
+python RWxml.py
+
+#4: 写入到realsense中
+cd到calibration_files中
+Intel.Realsense.CustomRW -w -f camera.info.xml
+```
+
+
+
+
+
+#### 1.0.3 内参效果验证
+
+**注:这个方法存在问题,最好的内参验证方法应该是获取了Pose之后重新投影到目标位置上去**
+
+
+
+将两个aruco固定到一个板上,aruco基于camera_info同时读取这两个aruco的pose,然后获取这两个aruco的变换关系(即之间的距离),如果之间的变换距离是准确的,即认为标定是准确的.
+
+(不过这个感觉其实也并不能说明什么问题,真正能够证明内参标定准确的还是讲点进行映射,然后看检测到的点和映射的点之间的差距)
+
+##### (1) 二维码绘制
+
+此处需要在一页上画两个二维码
+
+https://tn1ck.github.io/aruco-print/
+
+两个二维码分别为1和2的ID,另外尺寸为0.1cm
+
+
+
+##### (2) 进行两个二维码的追踪
+
+```
+roslaunch aruco_ros check_calibration.launch
+rosrun aruco_ros check_calibration.py
+```
+
+
+
+
+
 ### 1.1 aruco_ros
 
 #### 1.1.1 制作标定板
@@ -80,12 +154,14 @@ $ rosdep install --from-paths src --ignore-src -y
 这个其实可以直接sudo apt get 安装
 
 ```
+sudo apt-get install librealsense2-dev
+sudo apt-get install librealsense2-dbg
 sudo apt-get install ros-kinetic-realsense2-camera
 ```
 
 
 
-#### 1.4 vision_visp
+### 1.4 vision_visp
 
 这里面提供了手眼标定的参数调用,需要注意的是,Ubuntu16和Ubuntu18有专门对应的包,需要进行适配
 
@@ -152,17 +228,4 @@ roslaunch easy_handeye ur_realsense_calibration.launch marker_size:=0.1 marker_i
 rosrun rqt_image_view rqt_image_view
 ```
 
-
-
 一共会弹出3个窗口,Rviz进行机械臂末端查看,easy_handeye可以进行take sample结果记录,最终这个窗口compute即可获得最终结果
-
-
-
-
-
-
-
-但是似乎手眼标定效果并不算好hhh
-
-
-
